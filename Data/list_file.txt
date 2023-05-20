@@ -1,1 +1,20 @@
+LIST OF DATA FILE
+From 1988 to 2018
 
+Count_adelie: Number of breeding pairs of Adelie Penguins and Chicks by year
+
+Count_skua : Number of occupied sites, breeder, non breeder and chicks of South polar Skua by year
+
+Skua_matrix: CMR data on South polar skua 
+  CMR code:     0 = non-observed
+                1 = seen as non-breeder
+                2 = seen as failed breeder
+                3 = seen as successful breeder with one fledged chick
+                4 = seen as successful breeder with two chicks fledged chicks
+                5 = seen in a uncertain state
+ The last column is if the individual as been seen dead (-1) or not (1)
+
+Climat_cova: climatic covariables (Air temperature (AT), sea ice concentration (SIC), sea surface temperature anomalies (ssta),  and number of emperor penguin dead chicks
+
+N_immigrant: number of new individuals seen for the first time at the colony by year
+  
