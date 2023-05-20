@@ -1,0 +1,80 @@
+DATA ENTRIES
+K=31 (Nb of capture events)
+counts_adelie
+poussin
+N : Nb of skua individuals
+CMR_matrix
+First : date of first capture for each individual, Last : date of last capture for each individual
+fecSB1 = 1, fecSB2 = 2
+nb_immigrant
+counts_skua=
+Emperor_dead_chicks
+AT_spring
+AT_summer
+ssta
+SIC_spring
+SIC_summer
+SIC_winter
+
+PARAMETERS LIST 
+"pNB","pB","piFB","piSB1","piSB2","piNB","piD",
+                  "yNB","yB","gNB","gB","dNB","dB","bNB","bB",
+                  "cNB","cFB","cSB1","cSB2","B_skua","J4_NB",
+                  "F1","J2","J3","J4","FB","SB1","SB2","NB","Nadtot",
+                  "phi","alpha","PR", "sigma.counts_skua",
+                  "sigma.yB"   ,"eps.yB",  "mu.yB",
+                  "sigma.yNB"  ,"eps.yNB", "mu.yNB",
+                  "sigma.gNB"  ,"eps.gNB", "mu.gNB",
+                  "sigma.gB"   ,"eps.gB",  "mu.gB",
+                  "sigma.dNB"  ,"eps.dNB", "mu.dNB",
+                  "sigma.dB"   ,"eps.dB",  "mu.dB",
+                  "sigma.bNB"  ,"eps.bNB", "mu.bNB",
+                  "sigma.bB"   ,"eps.bB",  "mu.bB",
+                  "sigma.pNB"  ,"eps.pNB", "mu.pNB",
+                  "sigma.pB"   ,"eps.pB",  "mu.pB", "x",
+                  "yA","b","P","B_adelie","v","mu.b",
+                  "sigma.counts_adelie","sigma.poussin"
+                  
+   PARAMETERS INITIALISATION
+   list(alive= alive(mydata,N,K,e,L), 
+            sigma.counts_skua = 5,
+            sigma.counts_adelie = 99,
+            sigma.poussin=10,
+            
+            cNB = 0.5,
+            cFB = 0.5,
+            cSB1 = 0.5,
+            cSB2 = 0.5, 
+            
+            sigma.yB = 1,
+            sigma.bB = 1,
+            sigma.gB = 1,
+            sigma.dB = 1,
+            sigma.pB = 1,
+            
+            sigma.yNB = 1,
+            sigma.bNB = 1,
+            sigma.gNB = 1,
+            sigma.dNB = 1,
+            sigma.pNB = 1,
+            
+            mu.yB = 0.9,
+            mu.bB = 0.1,
+            mu.gB = 0.1,
+            mu.dB = 0.1,
+            mu.pB = 0.1,
+            
+            mu.yNB = 0.1,
+            mu.bNB = 0.1,
+            mu.gNB = 0.1,
+            mu.dNB = 0.1,
+            mu.pNB = 0.1,
+            
+            nF1 = 30,
+            nJ2 = 25,
+            nJ3 = 20, 
+            nJ4 = 15, 
+            nFB = 15,
+            nSB1 = 25,
+            nSB2 = 15,
+            nNB = 80)
