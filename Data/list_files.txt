@@ -1,4 +1,4 @@
-LIST OF DATA FILE
+LIST OF DATA FILES
 From 1988 to 2018
 
 Count_adelie: Number of breeding pairs of Adelie Penguins and Chicks by year
