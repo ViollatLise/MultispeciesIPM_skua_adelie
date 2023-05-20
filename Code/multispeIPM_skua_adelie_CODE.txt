@@ -1,0 +1,480 @@
+################################################### IPM MULTISPECIFIQUE - SKUA/MANCHOT ADELIE ########################################################
+# PARTIE 1 - IPM SKUA
+# PARTIE 2 - Modele espace etat manchot adelie
+
+model{
+
+###################################### PARTIE 1 - SKUA ############################
+# FISRT PART- Count Data 
+# SECOND PART- Capture recapture Data
+
+################################ COUNT DATA
+# STEP 1 : Initial population size, estimation d'apres les données de CR 
+# STEP 2 : Priors 
+# STEP 3 : Likelihood for population population count data (state-space model)
+#	STEP 3.1 : System Process 
+#	STEP 3.2 : Obsrvation process 
+
+###### STEP 1 : Initial population size, estimation from the CMR data
+# Juveniles
+	nF1 ~ dnorm(30, 0.01)T(0,)     
+	F1[1] <- round(nF1)
+
+	nJ2 ~ dnorm(25, 0.01)T(0,)    
+	J2[1] <- round(nJ2)
+
+	nJ3 ~ dnorm(15, 0.01)T(0,)    
+	J3[1] <- round(nJ3)
+
+	nJ4 ~ dnorm(10, 0.01)T(0,)
+	J4[1] <- round(nJ4)
+
+	J4_NB[1] ~ dbin((1-PR[1]), max(J4[1],1))
+
+# Adultes
+	nFB ~ dnorm(12, 0.01)T(0,)    
+	FB[1] <- round(nFB)
+
+	nSB1 ~ dnorm(23, 0.01)T(0,)     
+	SB1[1] <- round(nSB1)
+
+	nSB2 ~ dnorm(13, 0.01)T(0,)     
+	SB2[1] <- round(nSB2)
+
+	nNB ~ dnorm(68, 0.01)T(0,)    
+	NB[1] <- round(nNB)
+
+##### STEP 2 : Priors 
+    # First reproduction
+	for (t in 1:K) { PR[t] ~ dunif(0,1)}
+	
+	# Juvenile survival (higher with age, but constant trough time)
+	for (i in 1:4) { logit(phi[i]) <- alpha[1] + alpha[2] * i }
+	alpha[1] ~ dnorm(0.5,1)	#intercept
+	alpha[2] ~ dunif(0.5,2) #slope
+	
+	# Likelihood variance
+	sigma.counts_skua ~ dunif(1,15)
+	sigma2.counts_skua <- sigma.counts_skua*sigma.counts_skua
+	tau.counts_skua  <- 1/sigma2.counts_skua
+
+##### STEP 3 :  Likelihood for population population count data (state-space model)
+
+### STEP 3.1 : System process
+	for (t in 2:K){
+
+		# Fecondity
+		meanF1[t] <- (fecSB1 / 2 * SB1[t-1]) + (fecSB2 / 2 * SB2[t-1])  # fecSB1 = 1 ; fecSB2 = 2
+
+		# Immatures 
+		F1[t] ~ dpois(meanF1[t])
+		J2[t] ~ dbin(phi[1], max(F1[t-1],1))           	# F1 to J2 survival
+		J3[t] ~ dbin(phi[2], max(J2[t-1],1))		   	# J2 to J3 survival
+
+		J4_J3[t]    ~ dbin(phi[3], max(J3[t-1],1))	   	# J3 to J4 survival
+		J4_alive[t] ~ dbin(phi[4], max(J4_NB[t-1],1))  	# J4 that stay immature survival
+		J4[t]       <- J4_J3[t] + J4_alive[t]       	# Total of J4
+
+		J4_B[t] ~ dbin(PR[t], max(J4[t],1))			# Probability of doing its first reproduction and get out J4 class
+		J4_NB[t] <- max(J4[t],1) - J4_B[t]
+
+		# Survival
+		NB_alive[t] ~ dbin(yNB[t-1],max(NB[t-1],1))         # Non Breeder at (t-1) survival probability
+		B_alive_skua[t] ~ dbin(yB[t-1],max(B_skua[t-1],1))            # Breeder at (t-1) survival probability
+		
+		# Breeding
+		NB_B_i[t]     ~ dbin(bNB[t-1],max(NB_alive[t],1))    # Non Breeder at (t-1) breeding probability
+		NB_NB[t]    <- max(NB_alive[t],1) - NB_B_i[t]
+
+		B_B[t]     ~ dbin(bB[t-1], max(B_alive_skua[t],1))        # Breeder at (t-1) breeding probability
+		B_NB[t]    <- max(B_alive_skua[t],1) - B_B[t] 
+
+		NB_B[t] <- NB_B_i[t] + J4_B[t] + nb_immigrant[t]     # Non breeder at t-1, J4 à t-1 and immigrants t that will breed at t
+		NB[t] <- B_NB[t] + NB_NB[t] 				     # Non breeder at t
+
+		# Breeding success with 1 chicks
+		NB_SB[t]    ~ dbin(gNB[t-1],max(NB_B[t],1))           # Breeding success probability with 1 chicks for Non Breeder at (t-1) 
+		NB_FB[t]   <- max(NB_B[t],1) - NB_SB[t] 
+
+		B_SB[t]   ~ dbin(gB[t-1], max(B_B[t],1))              # Breeding success probability with 1 chicks for Breeder at (t-1) 
+		B_FB[t]  <- max(B_B[t],1) - B_SB[t]
+
+		FB[t] <- NB_FB[t] + B_FB[t]                       	# All individuals that failed their breeding
+
+		# Breeding success with 1 chicks
+		NB_SB2[t]   ~ dbin(dNB[t-1], max(NB_SB[t],1))         # Breeding success probability with 2 chicks for Non Breeder at (t-1)  
+		NB_SB1[t]   <- max(NB_SB[t],1) - NB_SB2[t]
+
+		B_SB2[t] ~ dbin(dB[t-1], max(B_SB[t],1))              # Breeding success probability with 2 chicks for Breeder at (t-1) 
+		B_SB1[t]   <- max(B_SB[t],1) - B_SB2[t]
+
+		SB1[t] <- NB_SB1[t] + B_SB1[t]					# Individuals with breeding success with 1 chicks 
+		SB2[t] <- NB_SB2[t] + B_SB2[t]                  		# Individuals with breeding success with 2 chicks 
+	}
+
+	# Total Population N_tot
+	for (t in 1:K) {
+		Nadtot[t] <- NB[t] + FB[t] + SB1[t] + SB2[t]     # Adult individuals
+		B_skua[t]  <- FB[t] + SB1[t] + SB2[t]                 # Breeding adult individuals
+	}
+
+### STEP 3.2 : Observation process
+	for (t in 1:K) {
+		counts_skua[t] ~ dnorm(B_skua[t], tau.counts_skua)           # Counting likelihood 
+	}
+
+################################ CAPTURE-RECAPTURE SKUA 
+# STEP 1: Initial states matrix (px0)
+# STEP 2: Observation process at initial state (p0.init) and for each year (po)
+# STEP 3: States process --> transition Matrix (px)
+# STEP 4: Likelihood --> State equation and observation process 
+# STEP 5: Priors for all parameters 
+
+##### NOTATIONS 
+  ### Observations 
+  #       0 = non-observed
+  #       1 = seen as non-breeder
+  #       2 = seen as failed breeder
+  #       3 = seen as successful breeder with one fledged chick
+  #       4 = seen as successful breeder with two chicks fledged chicks
+  #       5 = seen in a uncertain state
+  
+  ### States 
+  #       1 = alive non-breeder
+  #       2 = alive failed breeder
+  #       3 = alive successful breeder with one fledged chick
+  #       4 = alive successful breeder with two fledged chicks
+  #       5 = Dead
+  
+  #####  STEP 1: Initial states matrix (px0)
+  # pi = Probability of being in a initial state 
+  px0[1] <- piNB     # prob. of being in initial state NB (Non breeder)
+  px0[2] <- piFB     # prob. of being in initial state FB (Failed breeder)
+  px0[3] <- piSB1    # prob. of being in initial state SB1 (Sucessful breeder 1 chick)
+  px0[4] <- piSB2    # prob. of being in initial state SB2 (Successful breeder 2 chicks)
+  px0[5] <- piD      # prob. of being in initial state D (Dead)
+  
+  # Initial states for dead isequal to  0 (first capture exclusively on alive birds)
+  # Sum of all probability must be equal to 1
+  piNB <-  exp(pii[3])/(1+exp(pii[1])+exp(pii[2])+exp(pii[3]))
+  piFB <-  1/(1+exp(pii[1])+exp(pii[2])+exp(pii[3]))
+  piSB1 <- exp(pii[1])/( 1+exp(pii[1])+exp(pii[2])+exp(pii[3]))
+  piSB2 <- exp(pii[2])/( 1+exp(pii[1])+exp(pii[2])+exp(pii[3]))
+  piD <-   0
+  
+  # Priors
+  for (l in 1:3) {
+    pii[l] ~ dunif(-1,1)}
+  
+  
+  ##### STEP 2: Observation process at initial state (p0.init) and for each year (po)
+  # probabilities of observations (columns) at a given occasion given states (rows) at this occasion
+  
+  ### Initial = first capture occasion 
+  ## Notation
+  #     --> c = probability to ascertain the breeding status of an individual encountered
+  #         cNB  : prob. to ascertain the breeding status of an individual encountered as non-breeder
+  #         cFB  : prob. to ascertain the breeding status of an individual encountered as failed-breeder
+  #         cSB1 : prob. to ascertain the breeding status of an individual encountered as successful breeder with one fledged chick
+  #         cSB2 : prob. to ascertain the breeding status of an individual encountered as successful breeder with two fledged chick
+  
+  po.init[1,1] <- 0
+  po.init[1,2] <- cNB
+  po.init[1,3] <- 0
+  po.init[1,4] <- 0
+  po.init[1,5] <- 0
+  po.init[1,6] <- (1-cNB)
+  
+  po.init[2,1] <- 0
+  po.init[2,2] <- 0
+  po.init[2,3] <- cFB 
+  po.init[2,4] <- 0
+  po.init[2,5] <- 0
+  po.init[2,6] <- (1-cFB)
+  
+  po.init[3,1] <- 0
+  po.init[3,2] <- 0
+  po.init[3,3] <- 0
+  po.init[3,4] <- cSB1
+  po.init[3,5] <- 0
+  po.init[3,6] <- (1-cSB1)
+  
+  po.init[4,1] <- 0
+  po.init[4,2] <- 0
+  po.init[4,3] <- 0
+  po.init[4,4] <- 0
+  po.init[4,5] <- cSB2
+  po.init[4,6] <- (1-cSB2)
+  
+  po.init[5,1] <- 1
+  po.init[5,2] <- 0
+  po.init[5,3] <- 0
+  po.init[5,4] <- 0
+  po.init[5,5] <- 0
+  po.init[5,6] <- 0
+  
+  ### Observation process for each other captures occasion 
+  ## Notation
+  #     --> p = detection probability
+  #         pNB : detection prob. of non-breeder
+  #         pB  : detection prob. of breeder
+  
+  for (t in 1:(K)) {
+    po[1,1,t] <- (1-pNB[t]) 
+    po[1,2,t] <- pNB[t] * cNB
+    po[1,3,t] <- 0
+    po[1,4,t] <- 0
+    po[1,5,t] <- 0
+    po[1,6,t] <- pNB[t] * (1-cNB)
+    
+    po[2,1,t] <- (1-pB[t])
+    po[2,2,t] <- 0    
+    po[2,3,t] <- pB[t] * cFB
+    po[2,4,t] <- 0
+    po[2,5,t] <- 0
+    po[2,6,t] <- pB[t] * (1-cFB) 
+    
+    po[3,1,t] <- (1-pB[t])
+    po[3,2,t] <- 0
+    po[3,3,t] <- 0   
+    po[3,4,t] <- pB[t] * cSB1
+    po[3,5,t] <- 0
+    po[3,6,t] <- pB[t] * (1-cSB1)    
+    
+    po[4,1,t] <- (1-pB[t])
+    po[4,2,t] <- 0
+    po[4,3,t] <- 0
+    po[4,4,t] <- 0   
+    po[4,5,t] <- pB[t] * cSB2
+    po[4,6,t] <- pB[t] * (1-cSB2)    
+    
+    po[5,1,t] <- 1
+    po[5,2,t] <- 0
+    po[5,3,t] <- 0
+    po[5,4,t] <- 0
+    po[5,5,t] <- 0    
+    po[5,6,t] <- 0
+  }
+  
+  ###### STEP 3: States process --> transition Matrix (px)
+  # probabilities of states at t+1 (columns) given states at t (rows) given states at t (rows)
+  
+  ## Notation 
+  #     --> y : survival probability 
+  #         yNB : survival prob. of non-breeder
+  #         yB  : survival prob. of breeder
+  
+  #     --> b : breeding probability
+  #         bNB : breeding prob. of non-breeder
+  #         bB  : bredding prob. of breeder
+  
+  #     --> g : successful breeding prob.
+  #         gNB : successful breeding prob. of non-breeder
+  #         gB  : successful bredding prob. of breeder
+  
+  #     --> d : successful breeding prob. with 2 chicks
+  #         dNB : successful breeding prob. of non-breeder with 2 chicks
+  #         dB  : successful bredding prob. of breeder with 2 chicks
+  
+  for (t in 1:(K)) { 
+    px[1,1,t] <- yNB[t] * (1-bNB[t])   
+    px[1,2,t] <- yNB[t] * bNB[t] * (1-gNB[t])
+    px[1,3,t] <- yNB[t] * bNB[t] * gNB[t] * (1-dNB[t])
+    px[1,4,t] <- yNB[t] * bNB[t] * gNB[t] * dNB[t]
+    px[1,5,t] <- (1 - yNB[t]) 
+    
+    px[2,1,t] <- yB[t] * (1-bB[t]) 
+    px[2,2,t] <- yB[t] * bB[t] * (1-gB[t])
+    px[2,3,t] <- yB[t] * bB[t] * gB[t] * (1-dB[t])
+    px[2,4,t] <- yB[t] * bB[t] * gB[t] * dB[t]
+    px[2,5,t] <- (1 - yB[t])
+    
+    px[3,1,t] <- yB[t] * (1-bB[t])
+    px[3,2,t] <- yB[t] * bB[t] * (1-gB[t])
+    px[3,3,t] <- yB[t] * bB[t] * gB[t] * (1-dB[t])
+    px[3,4,t] <- yB[t] * bB[t] * gB[t] * dB[t]
+    px[3,5,t] <- (1 - yB[t])
+    
+    px[4,1,t] <- yB[t] * (1-bB[t])
+    px[4,2,t] <- yB[t] * bB[t] * (1-gB[t])
+    px[4,3,t] <- yB[t] * bB[t] * gB[t] * (1-dB[t])
+    px[4,4,t] <- yB[t] * bB[t] * gB[t] * dB[t]
+    px[4,5,t] <- (1 - yB[t])
+    
+    px[5,1,t] <- 0
+    px[5,2,t] <- 0
+    px[5,3,t] <- 0
+    px[5,4,t] <- 0
+    px[5,5,t] <- 1 
+  }
+  
+  ##### STEP 4: State Space model Likelihood --> State equation and observation process
+  for (i in 1:N)  { # Pour chaque individus 
+    # First capture occasion
+    # estimated probabilities of initial states are the proportions in each state at first capture occasion
+    alive[i,First[i]] ~ dcat(px0[1:5])
+    mydata[i,First[i]] ~ dcat(po.init[alive[i,First[i]],1:6])
+    
+    # Other years of capture events 
+    for (j in (First[i]+1):Last[i]) {
+      alive[i,j] ~ dcat(px[alive[i,j-1],1:5,j-1])  # draw states at j given states at j-1
+      mydata[i,j] ~ dcat(po[alive[i,j],1:6,j-1])  # draw observations at j given states at j
+    }
+  } 
+  
+  ###### STEP 5: Priors for all parameters
+  # Effet aleatoire du temps, sauf sur y
+  for (t in 1:K) {
+    eps.yB[t] ~ dnorm(0,tau.yB)
+    logit(yB[t]) <- mu.yB + eps.yB[t] + x[1]*Emperor_dead_chicks[t] + x[2]*B_adelie[t]/50000 + x[3]*Nadtot[t]/150 + x[4]*AT_spring[t] + x[5]*AT_summer[t] + x[6]*SIC_spring[t] + x[7]*SIC_summer[t] + x[8]*ssta[t]
+    
+    eps.yNB[t] ~ dnorm(0,tau.yNB)
+    logit(yNB[t]) <- mu.yNB + eps.yNB[t] + x[9]*Emperor_dead_chicks[t] + x[10]*B_adelie[t]/50000 + x[11]*Nadtot[t]/150 + x[12]*AT_spring[t] + x[13]*AT_summer[t] + x[14]*SIC_spring[t] + x[15]*SIC_summer[t] + x[16]*ssta[t]
+
+    eps.bB[t] ~ dnorm(0,tau.bB) 
+    logit(bB[t]) <- mu.bB + eps.bB[t] + x[17]*Emperor_dead_chicks[t] + x[18]*B_adelie[t]/50000 + x[19]*Nadtot[t]/150 + x[20]*AT_spring[t] + x[21]*SIC_spring[t] + x[22]*ssta[t]
+
+    eps.bNB[t] ~ dnorm(0,tau.bNB) 
+    logit(bNB[t]) <- mu.bNB + eps.bNB[t] + x[23]*Emperor_dead_chicks[t] + x[24]*B_adelie[t]/50000 + x[25]*Nadtot[t]/150 + x[26]*AT_spring[t] + x[27]*SIC_spring[t] + x[28]*ssta[t]
+
+    eps.gB[t] ~ dnorm(0,tau.gB) 
+    logit(gB[t]) <- mu.gB  + eps.gB[t] + x[29]*Emperor_dead_chicks[t] + x[30]*B_adelie[t]/50000 + x[31]*Nadtot[t]/150 + x[32]*AT_spring[t] + x[33]*AT_summer[t] + x[34]*SIC_spring[t] + x[35]*SIC_summer[t] 
+
+    eps.gNB[t] ~ dnorm(0,tau.gNB) 
+    logit(gNB[t]) <- mu.gNB + eps.gNB[t]  + x[36]*Emperor_dead_chicks[t] + x[37]*B_adelie[t]/50000 + x[38]*Nadtot[t]/150 + x[39]*AT_spring[t] + x[40]*AT_summer[t] + x[41]*SIC_spring[t] + x[42]*SIC_summer[t]
+
+    eps.dB[t] ~ dnorm(0,tau.dB) 
+    logit(dB[t]) <- mu.dB + eps.dB[t] + x[43]*Emperor_dead_chicks[t] + x[44]*B_adelie[t]/50000 + x[45]*Nadtot[t]/150 + x[46]*AT_spring[t] + x[47]*AT_summer[t] + x[48]*SIC_spring[t] + x[49]*SIC_summer[t]
+
+    eps.dNB[t] ~ dnorm(0,tau.dNB) 
+    logit(dNB[t]) <- mu.dNB + eps.dNB[t] + x[50]*Emperor_dead_chicks[t] + x[51]*B_adelie[t]/50000 + x[52]*Nadtot[t]/150  + x[53]*AT_spring[t] + x[54]*AT_summer[t] + x[55]*SIC_spring[t] + x[56]*SIC_summer[t] 
+    
+    eps.pNB[t] ~ dnorm(0,tau.pNB) 
+    logit(pNB[t]) <- mu.pNB + eps.pNB[t]
+    
+    eps.pB[t] ~ dnorm(0,tau.pB) 
+    logit(pB[t]) <- mu.pB + eps.pB[t]
+  }
+    
+    for (i in 1:56) { x[i] ~ dunif(-1,1) }
+    
+  ## Mean of parameters and variance of the random term for Previous Breeders and Non Breeder
+  tau.yB <- pow(sigma.yB,-2) 
+  sigma.yB ~ dunif(0,10)
+  mu.yB ~ dunif(0.8,1)
+  mean.yB <- exp(mu.yB) /(1 + exp(mu.yB))
+  
+  tau.yNB <- pow(sigma.yNB,-2) 
+  sigma.yNB ~ dunif(0,10)
+  mu.yNB ~ dnorm(0,0.0001)
+  mean.yNB <- exp(mu.yNB) /(1 + exp(mu.yNB))
+
+  tau.bB <- pow(sigma.bB,-2) # Breeding proba breeder
+  sigma.bB ~ dunif(0,10)
+  mu.bB ~ dnorm(0,0.0001)
+  mean.bB <- exp(mu.bB) /(1 + exp(mu.bB))
+  
+  tau.bNB <- pow(sigma.bNB,-2)  # Breeding probas non breeder
+  sigma.bNB ~ dunif(0,10)
+  mu.bNB ~ dnorm(0,0.0001)
+  mean.bNB <- exp(mu.bNB) /(1 + exp(mu.bNB)) 
+  
+  tau.gB <- pow(sigma.gB,-2) # Breeding success breeder
+  sigma.gB ~ dunif(0,10)
+  mu.gB ~ dnorm(0,0.0001)
+  mean.gB <- exp(mu.gB) /(1 + exp(mu.gB)) 
+  
+  tau.gNB <- pow(sigma.gNB,-2) # Breeding success non breeder
+  sigma.gNB ~ dunif(0,10)
+  mu.gNB ~ dnorm(0,0.0001)
+  mean.gNB <- exp(mu.gNB) /(1 + exp(mu.gNB))
+  
+  tau.dB <- pow(sigma.dB,-2) # Breeding success two chicks Breeder
+  sigma.dB ~ dunif(0,10)
+  mu.dB ~ dnorm(0,0.0001)
+  mean.dB <- exp(mu.dB) /(1 + exp(mu.dB))
+  
+  tau.dNB <- pow(sigma.dNB,-2) # Breeding success two chicks non Breeder
+  sigma.dNB ~ dunif(0,10)
+  mu.dNB ~ dnorm(0,0.0001)T(-6,6)
+  mean.dNB <- exp(mu.dNB) /(1 + exp(mu.dNB)) 
+  
+  tau.pB <- pow(sigma.pB,-2) # capture probability Breeder
+  sigma.pB ~ dunif(0,10)
+  mu.pB ~ dnorm(0,0.0001)
+  mean.pB <- exp(mu.pB) /(1 + exp(mu.pB))  
+  
+  tau.pNB <- pow(sigma.pNB,-2)  # capture probability non Breeder
+  sigma.pNB ~ dunif(0,10)
+  mu.pNB ~ dnorm(0,0.0001)
+  mean.pNB <- exp(mu.pNB) /(1 + exp(mu.pNB))
+  
+  # State assignment probas 
+  cNB ~ dunif(0, 1)
+  cFB ~ dunif(0, 1)
+  cSB1 ~ dunif(0, 1)
+  cSB2 ~ dunif(0, 1)
+ 
+###################################### PARTIE 2 - ADELIE ##########################
+# Counting Data
+
+# Age structure with 2 ages classes 
+#	poussin -> number of fledging chicks
+#	breeder -> adult, after the first reproduction
+# we don't know the number of chicks that come back to the colony to breed --> number of immigrants independent of the number of chicks 
+
+###### Step 1 : Prior 
+### Observation error 
+sigma.counts_adelie ~ dunif(1,100)
+sigma2.counts_adelie <- sigma.counts_adelie*sigma.counts_adelie
+tau.counts_adelie  <- 1/sigma2.counts_adelie
+
+sigma.poussin ~ dunif(1,15)
+sigma2.poussin <- sigma.poussin*sigma.poussin
+tau.poussin  <- 1/sigma2.poussin
+
+### Initial pop size 
+P_lambda~ dnorm(15000, 0.01)I(0,)
+P[1]~dpois(P_lambda)
+
+B_lambda~ dnorm(50000, 0.01)I(0,)
+B_adelie[1]~dpois(B_lambda)
+
+### Prior parameters
+#	yA adult apparent survival
+# 	a proportion de new breeder proportion = recruitment among first-time breeders + immigration
+# 	b breeding success 
+
+for (t in 1:K){
+# Time effect on breeding success 
+  yA[t] ~ dunif(0,2) # breeder survival
+  
+  logit(b[t]) <- mu.b + v[1]*Nadtot[t]/150 + v[2]*SIC_spring[t] + v[3]*SIC_summer[t] + v[4]*SIC_winter[t] + v[5]*B_adelie[t]/50000
+}
+
+  a=0.3 # recruitment/immigration rate, fixed
+ 
+ mu.b ~ dunif(0,1)
+	for (i in 1:5) { 
+	v[i] ~ dunif(-1,1)}
+  
+#Step 3: Likelihood
+	# System process 
+	for (t in 2:K){
+	#new_repro[t] ~ dbin(a[t-1], B_adelie[t-1]) #Recruitement + immigration
+	new_repro[t]= round(B_adelie[t-1]*a)
+
+	B_alive_adelie[t]~ dbin(yA[t-1], B_adelie[t-1]) #Adult survival
+
+	B_adelie[t]<-B_alive_adelie[t]+new_repro[t]		#Adults in reproduction at time t = surviving adults + new immigrants
+
+	meanP[t]<-round((B_adelie[t])*b[t]) #Poussin, breeding sucess
+	P[t]~dpois(meanP[t])
+		}
+	
+	#observation process
+	for (t in 1:K){
+	counts_adelie[t]~dnorm(B_adelie[t], tau.counts_adelie)
+	poussin[t]~dnorm(P[t], tau.poussin)
+	}
+}
